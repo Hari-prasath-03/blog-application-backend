@@ -9,6 +9,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBlogDto } from './dto/create-blog.dto';
 import BlogResponseDto from './dto/blog-response.dto';
 import { UpdateBlogDto } from './dto/update-blog.dto';
+import { CreateCommentDto } from './dto/create-comment.dto';
 
 @Injectable()
 export class BlogsService {
@@ -162,5 +163,127 @@ export class BlogsService {
     await this.prismaService.blog.delete({
       where: { id: blogId },
     });
+  }
+
+  // Likes
+
+  async like(blogId: string, userId: string) {
+    const blog = await this.prismaService.blog.findFirst({
+      where: {
+        id: blogId,
+        isPublished: true,
+      },
+      select: { id: true },
+    });
+
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    try {
+      await this.prismaService.like.create({
+        data: {
+          blogId,
+          userId,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('You already liked this blog');
+      }
+      throw new InternalServerErrorException(
+        'An error occurred while liking the blog',
+      );
+    }
+
+    const likeCount = await this.prismaService.like.count({
+      where: { blogId },
+    });
+
+    return { likeCount };
+  }
+
+  async unlike(blogId: string, userId: string) {
+    await this.prismaService.like.deleteMany({
+      where: {
+        blogId,
+        userId,
+      },
+    });
+
+    const likeCount = await this.prismaService.like.count({
+      where: { blogId },
+    });
+
+    return { likeCount };
+  }
+
+  // Comments
+
+  async createComment(blogId: string, userId: string, dto: CreateCommentDto) {
+    try {
+      const comment = await this.prismaService.comment.create({
+        data: {
+          blogId,
+          userId,
+          content: dto.content,
+        },
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      return comment;
+    } catch (error: any) {
+      if (error.code === 'P2003') {
+        throw new NotFoundException('Blog not found');
+      }
+      throw error;
+    }
+  }
+
+  async getComments(blogId: string, page: number, size: number) {
+    const skip = page * size;
+
+    const [comments, totalItems] = await Promise.all([
+      this.prismaService.comment.findMany({
+        where: { blogId },
+        skip,
+        take: size,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      }),
+      this.prismaService.comment.count({
+        where: { blogId },
+      }),
+    ]);
+
+    return {
+      data: comments,
+      page,
+      size,
+      totalItems,
+      totalPages: Math.ceil(totalItems / size),
+    };
   }
 }

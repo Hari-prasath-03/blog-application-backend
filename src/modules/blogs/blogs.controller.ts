@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
@@ -25,6 +26,7 @@ import BlogResponseDto from './dto/blog-response.dto';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 import { PrismaExceptionFilter } from './filter/prisma-exception.filter';
+import { CreateCommentDto } from './dto/create-comment.dto';
 
 @ApiTags('Blogs')
 @ApiBasicAuth('JWT-Auth')
@@ -120,5 +122,38 @@ export class BlogsController {
     @Param('id') blogId: string,
   ): Promise<void> {
     await this.blogsService.delete(userId, blogId);
+  }
+
+  // Likes
+
+  @Post(':id/like')
+  async like(@Param('id') blogId: string, @GetUser('id') userId: string) {
+    return this.blogsService.like(blogId, userId);
+  }
+
+  @Delete(':id/like')
+  async unlike(@Param('id') blogId: string, @GetUser('id') userId: string) {
+    return this.blogsService.unlike(blogId, userId);
+  }
+
+  // Comments
+
+  @Post(':id/comments')
+  @UseGuards(JwtAuthGuard)
+  async createComment(
+    @Param('id') blogId: string,
+    @GetUser('id') userId: string,
+    @Body() dto: CreateCommentDto,
+  ) {
+    return this.blogsService.createComment(blogId, userId, dto);
+  }
+
+  @Get(':id/comments')
+  async getComments(
+    @Param('id') blogId: string,
+    @Query('page') page = '0',
+    @Query('size') size = '10',
+  ) {
+    return this.blogsService.getComments(blogId, Number(page), Number(size));
   }
 }
