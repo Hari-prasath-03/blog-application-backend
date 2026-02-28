@@ -1,98 +1,227 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Rival Assessment Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS + Prisma + PostgreSQL backend for authentication, user management, private blog management, and public blog feed endpoints.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tech Stack
 
-## Description
+- **Framework**: NestJS 11 (TypeScript)
+- **Database**: PostgreSQL
+- **ORM**: Prisma 7 + `@prisma/adapter-pg`
+- **Auth**: JWT access/refresh flow with Passport
+- **Validation**: `class-validator` + global `ValidationPipe`
+- **API Docs**: Swagger at `/api/docs`
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Setup Instructions
+
+### 1) Prerequisites
+
+- Node.js 20+
+- pnpm 9+
+- PostgreSQL 14+
+
+### 2) Install dependencies
 
 ```bash
-$ pnpm install
+pnpm install
 ```
 
-## Compile and run the project
+### 3) Create environment file
+
+Create `.env` in project root:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/rival_assessment
+PORT=8080
+NODE_ENV=development
+
+JWT_SECRET=replace-with-strong-secret
+JWT_EXPIRES=3600
+JWT_REFRESH_SECRET=replace-with-strong-refresh-secret
+
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
+```
+
+### 4) Run database migrations
+
+```bash
+pnpm prisma migrate deploy
+```
+
+For local schema changes during development:
+
+```bash
+pnpm prisma migrate dev
+```
+
+### 5) Start the API
 
 ```bash
 # development
-$ pnpm run start
+pnpm dev
 
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+# production build
+pnpm build
+pnpm start:prod
 ```
 
-## Run tests
+### 6) Verify app is running
+
+- API base URL: `http://localhost:8080/api/v1`
+- Swagger docs: `http://localhost:8080/api/docs`
+
+### 7) Run tests
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm test
+pnpm test:e2e
 ```
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Architecture Explanation
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### High-level structure
+
+- `src/main.ts`
+  - App bootstrap
+  - Global route prefix: `/api/v1`
+  - Global validation and CORS
+  - Swagger setup
+- `src/app.module.ts`
+  - Root module wiring: `AuthModule`, `UsersModule`, `BlogsModule`, `PublicModule`, `PrismaModule`
+- `src/prisma`
+  - Prisma client lifecycle (`connect/disconnect`) and DB access
+- `src/common`
+  - Cross-cutting concerns: guards, decorators, request typing
+- `src/modules/*`
+  - Feature modules with clear controller/service split
+
+### Request flow
+
+1. Request enters controller (`auth`, `users`, `blogs`, or `public`).
+2. Guards/decorators enforce auth and role checks where needed.
+3. DTO validation runs through global `ValidationPipe`.
+4. Service performs domain logic and reads/writes via `PrismaService`.
+5. Response DTO shape is returned.
+
+### Data model (Prisma)
+
+- `User`
+  - identity, role, credentials, refresh token
+- `Blog`
+  - author-owned content with `isPublished` + `publishedAt`
+- `Like`
+  - unique per `(userId, blogId)`
+- `Comment`
+  - user comment on blog with paging support
+
+### API boundaries
+
+- **Private API** (`/blogs`, `/users`) requires JWT auth.
+- **Public API** (`/public`) serves published content only.
+- **Auth API** (`/auth`) handles register/login/refresh/logout.
+
+---
+
+## Tradeoffs Made
+
+- **Monolithic module design** over microservices
+  - Faster delivery and simpler local development
+  - Tradeoff: tighter coupling at scale
+
+- **Prisma ORM** over raw SQL
+  - Faster iteration and type-safe queries
+  - Tradeoff: less control for highly specialized query tuning
+
+- **JWT stateless auth** over server sessions
+  - Scales horizontally more easily
+  - Tradeoff: token revocation/rotation complexity
+
+- **Feature-first module layout** over layered-by-type layout
+  - Better ownership and maintainability per domain
+  - Tradeoff: some shared logic may be duplicated early
+
+- **Single PostgreSQL database**
+  - Operational simplicity
+  - Tradeoff: eventual read/write scaling pressure
+
+---
+
+## What I Would Improve Next
+
+- **Refresh token handling hardening**
+  - Ensure storage/validation strategy is consistent and secure (hashing + rotation + reuse detection)
+
+- **Rate limiting and abuse protection**
+  - Add throttling for auth and public-feed endpoints
+
+- **Observability**
+  - Add structured logging, tracing, and metrics (latency/error/throughput)
+
+- **Error handling consistency**
+  - Standardize error response envelope across all modules
+
+- **Performance and query optimization**
+  - Add targeted indexes and response caching for public feed/blog-by-slug reads
+
+- **Security posture**
+  - Add secrets management, stricter CORS by environment, and dependency vulnerability scanning in CI
+
+---
+
+## How I’d Scale This to 1M Users
+
+### 1) App/API layer
+
+- Run multiple stateless API instances behind a load balancer.
+- Enable autoscaling on CPU/RPS/latency.
+- Keep app instances disposable (12-factor style config).
+
+### 2) Data layer
+
+- Use managed PostgreSQL with:
+  - read replicas for heavy public-read traffic
+  - connection pooling (e.g., PgBouncer)
+  - backup + PITR strategy
+- Partition high-growth tables (comments/likes) when needed.
+
+### 3) Caching strategy
+
+- Add Redis for:
+  - hot public feed pages
+  - blog-by-slug cache
+  - short-lived auth/session metadata
+- Use cache-aside with clear TTL/invalidation rules.
+
+### 4) Async/event processing
+
+- Offload non-critical work to queues/workers:
+  - notifications
+  - analytics pipelines
+  - search indexing
+
+### 5) Search and content delivery
+
+- Add dedicated search engine for full-text blog search.
+- Use CDN for static assets/media.
+
+### 6) Reliability & operations
+
+- Add SLOs and alerting for p95 latency/error rate.
+- Implement zero-downtime DB migrations and blue/green or canary deployments.
+- Run load tests regularly and capacity-plan before expected spikes.
+
+---
+
+## Useful Commands
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm dev
+pnpm build
+pnpm start:prod
+pnpm lint
+pnpm test
+pnpm test:e2e
 ```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
