@@ -27,6 +27,7 @@ import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 import { PrismaExceptionFilter } from './filter/prisma-exception.filter';
 import { CreateCommentDto } from './dto/create-comment.dto';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Blogs')
 @ApiBasicAuth('JWT-Auth')
@@ -138,8 +139,13 @@ export class BlogsController {
 
   // Comments
 
+  @Public()
+  @Get(':id/comments')
+  async getComments(@Param('id') blogId: string) {
+    return this.blogsService.getComments(blogId);
+  }
+
   @Post(':id/comments')
-  @UseGuards(JwtAuthGuard)
   async createComment(
     @Param('id') blogId: string,
     @GetUser('id') userId: string,
@@ -148,12 +154,12 @@ export class BlogsController {
     return this.blogsService.createComment(blogId, userId, dto);
   }
 
-  @Get(':id/comments')
-  async getComments(
+  @Delete(':id/comments/:commentId')
+  async deleteComment(
     @Param('id') blogId: string,
-    @Query('page') page = '0',
-    @Query('size') size = '10',
+    @Param('commentId') commentId: string,
+    @GetUser('id') userId: string,
   ) {
-    return this.blogsService.getComments(blogId, Number(page), Number(size));
+    return this.blogsService.deleteComment(blogId, commentId, userId);
   }
 }

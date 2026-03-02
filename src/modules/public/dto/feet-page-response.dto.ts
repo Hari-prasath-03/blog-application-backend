@@ -13,6 +13,7 @@ export class FeetPageResponseDto {
       comments: number;
       likes: number;
     };
+    likedByMe: boolean;
   }[];
   page: number;
   size: number;

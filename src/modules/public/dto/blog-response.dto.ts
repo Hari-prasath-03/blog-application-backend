@@ -13,4 +13,5 @@ export class BlogResponseDto {
     comments: number;
     likes: number;
   };
+  likedByMe: boolean;
 }

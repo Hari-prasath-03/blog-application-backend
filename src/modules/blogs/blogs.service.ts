@@ -243,47 +243,51 @@ export class BlogsService {
 
       return comment;
     } catch (error: any) {
-      if (error.code === 'P2003') {
-        throw new NotFoundException('Blog not found');
-      }
-      throw error;
+      throw new InternalServerErrorException(
+        'An error occurred while comment the blog',
+      );
     }
   }
 
-  async getComments(blogId: string, page: number, size: number) {
-    const skip = page * size;
+  async deleteComment(blogId: string, commentId: string, userId: string) {
+    const comment = await this.prismaService.comment.findUnique({
+      where: { id: commentId },
+    });
 
-    const [comments, totalItems] = await Promise.all([
-      this.prismaService.comment.findMany({
-        where: { blogId },
-        skip,
-        take: size,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          id: true,
-          content: true,
-          createdAt: true,
-          user: {
-            select: {
-              id: true,
-              name: true,
-            },
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (comment.userId !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this comment',
+      );
+    }
+
+    await this.prismaService.comment.delete({
+      where: { id: commentId },
+    });
+  }
+
+  async getComments(blogId: string) {
+    const comments = await this.prismaService.comment.findMany({
+      where: { blogId },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
           },
         },
-      }),
-      this.prismaService.comment.count({
-        where: { blogId },
-      }),
-    ]);
+      },
+    });
 
-    return {
-      data: comments,
-      page,
-      size,
-      totalItems,
-      totalPages: Math.ceil(totalItems / size),
-    };
+    return comments;
   }
 }
